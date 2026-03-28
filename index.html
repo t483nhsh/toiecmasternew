@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: #f8fafc; margin: 0; }
+        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
         .toeic-blue { background-color: #002d62; }
         .toeic-text { color: #002d62; }
         .btn-primary { background-color: #002d62; color: white; transition: all 0.2s; }
@@ -21,7 +21,7 @@
         @keyframes wave-anim { 0%, 100% { height: 8px; } 50% { height: 28px; } }
         .progress-ring { transition: stroke-dashoffset 0.8s ease-out; transform: rotate(-90deg); transform-origin: 50% 50%; }
         .option-btn { transition: all 0.15s; }
-        .transcript-preview { border-top: 1px solid #fee2e2; color: #991b1b; font-size: 0.875rem; margin-top: 1rem; padding-top: 0.5rem; font-style: italic; }
+        .transcript-preview { border-top: 2px solid #fee2e2; color: #b91c1c; font-size: 1rem; margin-top: 1.5rem; padding: 1rem; background: #fff1f1; border-radius: 1rem; }
     </style>
 </head>
 <body>
@@ -221,7 +221,7 @@
             const recognitionRef = useRef(null);
             const timerRef = useRef(null);
             const startTimeRef = useRef(null);
-            const fullTranscriptRef = useRef(""); 
+            const lastTranscriptRef = useRef(""); // 儲存最後辨識出的完整內容
 
             const speakDemo = () => {
                 window.speechSynthesis.cancel();
@@ -253,7 +253,7 @@
 
             useEffect(() => { 
                 if (phase === "speak") {
-                    fullTranscriptRef.current = "";
+                    lastTranscriptRef.current = "";
                     setRealtimeText("");
                     startMic(); 
                     startTimeRef.current = Date.now();
@@ -263,10 +263,7 @@
             const startMic = () => {
                 setMicError(false);
                 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!SR) {
-                    setMicError(true);
-                    return;
-                }
+                if (!SR) { setMicError(true); return; }
                 
                 recognitionRef.current = new SR();
                 recognitionRef.current.lang = 'en-US'; 
@@ -274,36 +271,30 @@
                 recognitionRef.current.interimResults = true;
                 
                 recognitionRef.current.onresult = (e) => {
-                    let interimTranscript = "";
-                    for(let i = e.resultIndex; i < e.results.length; i++) {
-                        const transcriptSegment = e.results[i][0].transcript;
-                        if(e.results[i].isFinal) {
-                            fullTranscriptRef.current += transcriptSegment + " ";
-                        } else {
-                            interimTranscript += transcriptSegment;
-                        }
+                    let fullText = "";
+                    for(let i = 0; i < e.results.length; i++) {
+                        fullText += e.results[i][0].transcript + " ";
                     }
-                    setRealtimeText(fullTranscriptRef.current + interimTranscript);
+                    setRealtimeText(fullText.trim());
+                    lastTranscriptRef.current = fullText.trim(); // 即時同步到 Ref
                 };
                 
                 recognitionRef.current.onerror = (e) => {
-                    console.error("Speech Recognition Error", e);
+                    console.error("Speech Error", e);
                     if (e.error === 'not-allowed') setMicError(true);
                 };
 
                 try { 
                     recognitionRef.current.start(); 
                     setIsRecording(true);
-                } catch(err) { 
-                    console.error(err); 
-                }
+                } catch(err) { console.error(err); }
             };
 
             const stopMic = () => {
                 setIsRecording(false);
                 if (recognitionRef.current) {
-                    recognitionRef.current.onresult = null;
                     recognitionRef.current.stop();
+                    recognitionRef.current.onresult = null;
                 }
                 setPhase("result");
                 analyzeLocally();
@@ -311,38 +302,39 @@
 
             const analyzeLocally = () => {
                 setLoading(true);
+                // 延遲執行，確保最後一次辨識結果已寫入 lastTranscriptRef
                 setTimeout(() => {
-                    const finalTranscript = fullTranscriptRef.current.trim() || realtimeText.trim();
+                    const finalTranscript = lastTranscriptRef.current || realtimeText;
                     
-                    if (!finalTranscript) {
-                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "系統未偵測到您的聲音，請確保麥克風已正確授權，且您的瀏覽器支援語音辨識。" });
+                    if (!finalTranscript || finalTranscript.length < 2) {
+                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "未偵測到有效聲音。請確保對著麥克風大聲朗讀，並確認瀏覽器權限。" });
                         setLoading(false); 
                         return;
                     }
 
-                    const targetArr = selected.text.toLowerCase().replace(/[.,!?;:]/g, "").split(/\s+/);
-                    const userArr = finalTranscript.toLowerCase().split(/\s+/);
+                    const targetWords = selected.text.toLowerCase().replace(/[.,!?;:]/g, "").split(/\s+/);
+                    const userWords = finalTranscript.toLowerCase().split(/\s+/);
                     
                     let matches = 0;
-                    targetArr.forEach(w => { if(userArr.includes(w)) matches++; });
+                    targetWords.forEach(tw => { if(userWords.includes(tw)) matches++; });
                     
-                    const accuracy = Math.round((matches / targetArr.length) * 100);
-                    const duration = (Date.now() - (startTimeRef.current || Date.now())) / 1000;
-                    const wpm = (userArr.length / (duration || 1)) * 60;
+                    const accuracy = Math.round((matches / targetWords.length) * 100);
+                    const elapsed = (Date.now() - (startTimeRef.current || Date.now())) / 1000;
+                    const wpm = Math.round((userWords.length / (elapsed || 1)) * 60);
                     
-                    let fluency = wpm > 100 ? 95 : wpm > 70 ? 80 : wpm > 40 ? 60 : 40;
-                    const articulation = Math.min(100, Math.round(accuracy * 0.9 + (Math.random()*10)));
-                    const pronunciation = Math.min(100, Math.round(accuracy * 0.95 + (Math.random()*5)));
+                    const fluency = wpm > 100 ? 98 : wpm > 70 ? 85 : wpm > 40 ? 65 : 45;
+                    const articulation = Math.min(100, Math.round(accuracy * 0.92 + (Math.random()*8)));
+                    const pronunciation = Math.min(100, Math.round(accuracy * 0.96 + (Math.random()*4)));
                     const overall = Math.round((accuracy + fluency + articulation + pronunciation) / 4);
                     
-                    let advice = "您的發音穩定。";
-                    if(accuracy < 60) advice = "系統辨識出的正確單字較少，建議再聽聽 AI 示範並放慢語速，大聲清晰地讀出每個音節。";
-                    else if(wpm < 80) advice = "您的準確度不錯，可以嘗試提高朗讀的流暢度與速度。";
-                    else advice = "表現非常優秀！您的語速與發音都在標準水準之上。";
+                    let advice = "您的發音相當穩定。";
+                    if(accuracy < 50) advice = "系統捕捉到的單字與原文差異較大，建議放慢語速，並確保每個單字的音節都清晰發出。";
+                    else if(wpm < 70) advice = "您的準確度很高，但語速稍慢，可以練習在句子中加入自然的停頓與連音。";
+                    else advice = "表現出色！您的語速掌握得非常好，準確度也在水準之上。";
 
                     setFeedback({ overall, fluency, accuracy, articulation, pronunciation, advice });
                     setLoading(false);
-                }, 1200);
+                }, 1000);
             };
 
             if (!selected) {
@@ -369,7 +361,7 @@
                         <div className="flex justify-center gap-16 mt-8">
                             <div className="text-center">
                                 <div className="text-[10px] opacity-60 font-black mb-1 uppercase tracking-widest">階段 Phase</div>
-                                <div className="text-2xl font-black">{phase === 'demo' ? '預覽與練習' : phase === 'prep' ? '準備中' : phase === 'speak' ? '正在錄音' : '分析中'}</div>
+                                <div className="text-2xl font-black">{phase === 'demo' ? '預覽與練習' : phase === 'prep' ? '準備中' : phase === 'speak' ? '錄音中' : '分析完成'}</div>
                             </div>
                             {phase !== 'result' && (
                                 <div className="text-center border-l border-white/20 pl-16">
@@ -380,11 +372,11 @@
                         </div>
                     </div>
                     <div className="p-10">
-                        <div className={`p-10 bg-slate-50 rounded-[30px] border-2 font-serif text-2xl leading-relaxed text-center shadow-inner transition-all duration-700 ${phase === 'speak' ? 'border-red-400 bg-red-50 text-red-900' : 'border-slate-100 text-slate-700'}`}>
+                        <div className={`p-10 bg-slate-50 rounded-[30px] border-2 font-serif text-2xl leading-relaxed text-center shadow-inner transition-all duration-700 ${phase === 'speak' ? 'border-red-400 bg-red-50 text-red-900 shadow-xl' : 'border-slate-100 text-slate-700'}`}>
                             {selected.text}
                             {phase === 'speak' && realtimeText && (
-                                <div className="transcript-preview">
-                                    <span className="text-[10px] font-sans block uppercase font-black text-red-400 mb-1">正在辨識 Detecting...</span>
+                                <div className="transcript-preview animate-pulse">
+                                    <span className="text-[10px] font-sans block uppercase font-black text-red-400 mb-1 tracking-widest">正在捕捉聲音 Detecting Voice...</span>
                                     「 {realtimeText} 」
                                 </div>
                             )}
@@ -396,17 +388,17 @@
                                         <button onClick={speakDemo} className="flex items-center gap-2 bg-orange-50 text-orange-600 px-8 py-4 rounded-2xl font-black border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm"><Icon name="volume-2" /> AI 示範朗讀</button>
                                         <button onClick={startPrep} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-xl active:scale-95 uppercase tracking-widest">開始準備 (45s)</button>
                                     </div>
-                                    <p className="text-xs text-slate-400 font-bold italic">💡 先聽聽示範掌握節奏，準備好後點擊按鈕開始。</p>
+                                    <p className="text-xs text-slate-400 font-bold italic">💡 點擊「示範朗讀」掌握節奏，準備好後按下開始。</p>
                                 </div>
                             )}
                             {phase === "speak" && (
                                 <div className="flex flex-col items-center gap-8 w-full">
                                     <div className="flex items-center gap-4 text-red-600 bg-red-50 px-8 py-4 rounded-full border border-red-200 shadow-inner">
                                         <div className="recording-wave">{[...Array(6)].map((_, i) => <div key={i} className="wave-bar" style={{animationDelay: `${i*0.1}s`}}></div>)}</div>
-                                        <span className="font-black uppercase tracking-widest italic">正在錄音中...</span>
+                                        <span className="font-black uppercase tracking-widest italic">Mic On - Recording...</span>
                                     </div>
                                     {micError && <p className="text-red-500 font-bold text-sm bg-red-50 p-3 rounded-lg border border-red-200">無法存取麥克風，請確保您的瀏覽器允許麥克風權限。</p>}
-                                    <button onClick={stopMic} className="bg-red-600 text-white px-16 py-5 rounded-full font-black text-xl shadow-xl hover:bg-red-700 active:scale-95 transition-all">提交錄音並評分</button>
+                                    <button onClick={stopMic} className="bg-red-600 text-white px-16 py-5 rounded-full font-black text-xl shadow-xl hover:bg-red-700 active:scale-95 transition-all">結束錄音並評分</button>
                                 </div>
                             )}
                             {phase === "result" && (
@@ -414,7 +406,7 @@
                                     {loading ? (
                                         <div className="flex flex-col items-center gap-6 py-12">
                                             <div className="w-16 h-16 border-8 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                                            <p className="font-black text-slate-400 uppercase tracking-widest animate-pulse">分析中 Analyzing...</p>
+                                            <p className="font-black text-slate-400 uppercase tracking-widest animate-pulse">分析中 Analyzing Performance...</p>
                                         </div>
                                     ) : feedback && (
                                         <div className="space-y-12 animate-in zoom-in-95 duration-500">
@@ -432,7 +424,7 @@
                                                 <p className="text-slate-600 font-bold leading-relaxed">{feedback.advice}</p>
                                             </div>
                                             <div className="flex justify-center gap-4">
-                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setRealtimeText(""); fullTranscriptRef.current = ""; }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
+                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setRealtimeText(""); lastTranscriptRef.current = ""; }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
                                                 <button onClick={() => setSelected(null)} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-lg">更換主題</button>
                                             </div>
                                         </div>
@@ -470,7 +462,6 @@
                                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest italic opacity-60">Analytical Ivy Jan 2026</p>
                             </div>
                             <button disabled={!user.trim()} onClick={() => setLogged(true)} className="w-full btn-primary py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">進入練習系統</button>
-                            <p className="text-[10px] text-slate-400 mt-6 text-center italic">本系統採用本地語音分析演算法，不需 API Key</p>
                         </div>
                     </div>
                 );
@@ -524,7 +515,7 @@
                         {view === "speaking" && <SpeakingView onBack={() => setView("menu")} />}
                         {(view.startsWith('part')) && <ReadingView type={view} data={activeData} onBack={() => setView("menu")} />}
                     </main>
-                    <footer className="mt-20 py-12 border-t text-center text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">© 2026 ANALYTICAL IVY | OFFLINE EVALUATION EDITION</footer>
+                    <footer className="mt-20 py-12 border-t text-center text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">© 2026 ANALYTICAL IVY | PUBLIC WEB EDITION</footer>
                 </div>
             );
         };
