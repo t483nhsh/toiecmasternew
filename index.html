@@ -113,35 +113,27 @@
             const radius = size === "large" ? 45 : 35;
             const circumference = 2 * Math.PI * radius;
             const offset = circumference - ((score || 0) / 100) * circumference;
-            const boxSize = size === "large" ? "w-40 h-40" : "w-24 h-24";
+            const boxSize = size === "large" ? "w-48 h-48" : "w-24 h-24";
             return (
                 <div className="flex flex-col items-center gap-2">
                     <div className={`relative ${boxSize}`}>
                         <svg className="w-full h-full progress-ring" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r={radius} stroke="#f1f5f9" strokeWidth="8" fill="transparent" />
-                            <circle cx="50" cy="50" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className={colorClass} />
+                            <circle cx="50" cy="50" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" 
+                                strokeDasharray={circumference} 
+                                strokeDashoffset={offset} 
+                                strokeLinecap="round" className={colorClass} />
                         </svg>
-                        <div className={`absolute inset-0 flex items-center justify-center font-black text-slate-800 ${size === "large" ? "text-4xl" : "text-base"}`}>{score || 0}%</div>
+                        <div className={`absolute inset-0 flex items-center justify-center font-black text-slate-800 ${size === "large" ? "text-5xl" : "text-base"}`}>{score || 0}%</div>
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                    <span className={`font-black text-slate-400 uppercase tracking-widest ${size === "large" ? "text-sm mt-2" : "text-[10px]"}`}>{label}</span>
                 </div>
             );
         };
 
-        // 定義缺失的 ScoreMetric 組件
         const ScoreMetric = ({ label, score, colorClass }) => (
-            <div className="flex flex-col items-center gap-2 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <div className="relative w-20 h-20">
-                    <svg className="w-full h-full progress-ring" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="35" stroke="#f1f5f9" strokeWidth="8" fill="transparent" />
-                        <circle cx="50" cy="50" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" 
-                            strokeDasharray={2 * Math.PI * 35} 
-                            strokeDashoffset={(2 * Math.PI * 35) - ((score || 0) / 100) * (2 * Math.PI * 35)} 
-                            strokeLinecap="round" className={colorClass} />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center font-black text-slate-800 text-sm">{score || 0}%</div>
-                </div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+            <div className="flex flex-col items-center gap-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <ScoreRing label={label} score={score} colorClass={colorClass} size="small" />
             </div>
         );
 
@@ -229,7 +221,6 @@
             const [selected, setSelected] = useState(null);
             const [phase, setPhase] = useState("demo"); 
             const [timer, setTimer] = useState(45);
-            const [isRecording, setIsRecording] = useState(false);
             const [feedback, setFeedback] = useState(null);
             const [loading, setLoading] = useState(false);
             const [micError, setMicError] = useState(false);
@@ -238,7 +229,7 @@
             const recognitionRef = useRef(null);
             const timerRef = useRef(null);
             const startTimeRef = useRef(null);
-            const lastTranscriptRef = useRef(""); 
+            const transcriptBufferRef = useRef(""); 
 
             const speakDemo = () => {
                 window.speechSynthesis.cancel();
@@ -270,7 +261,7 @@
 
             useEffect(() => { 
                 if (phase === "speak") {
-                    lastTranscriptRef.current = "";
+                    transcriptBufferRef.current = "";
                     setRealtimeText("");
                     startMic(); 
                     startTimeRef.current = Date.now();
@@ -288,12 +279,12 @@
                 recognitionRef.current.interimResults = true;
                 
                 recognitionRef.current.onresult = (e) => {
-                    let fullText = "";
+                    let full = "";
                     for(let i = 0; i < e.results.length; i++) {
-                        fullText += e.results[i][0].transcript + " ";
+                        full += e.results[i][0].transcript + " ";
                     }
-                    setRealtimeText(fullText.trim());
-                    lastTranscriptRef.current = fullText.trim(); 
+                    transcriptBufferRef.current = full.trim();
+                    setRealtimeText(full.trim());
                 };
                 
                 recognitionRef.current.onerror = (e) => {
@@ -301,35 +292,43 @@
                     if (e.error === 'not-allowed') setMicError(true);
                 };
 
-                try { 
-                    recognitionRef.current.start(); 
-                    setIsRecording(true);
-                } catch(err) { console.error(err); }
+                // 辨識引擎完全停止時觸發評分，確保最後一段話被處理完
+                recognitionRef.current.onend = () => {
+                    if (phase === "speak") {
+                        // 如果錄音是因為超時自動停止或意外停止
+                        analyzeLocally();
+                    }
+                };
+
+                try { recognitionRef.current.start(); } catch(err) { console.error(err); }
             };
 
             const stopMic = () => {
-                setIsRecording(false);
                 if (recognitionRef.current) {
+                    // 先清掉 onend 監聽避免重複觸發分析
+                    recognitionRef.current.onend = null;
                     recognitionRef.current.stop();
-                    recognitionRef.current.onresult = null;
                 }
-                setPhase("result");
                 analyzeLocally();
             };
 
             const analyzeLocally = () => {
+                if (phase === "result") return; // 避免重複執行
+                setPhase("result");
                 setLoading(true);
+
+                // 稍微延遲給辨識引擎最後處理的時間
                 setTimeout(() => {
-                    const finalTranscript = lastTranscriptRef.current || realtimeText;
+                    const finalTranscript = transcriptBufferRef.current || realtimeText;
                     
-                    if (!finalTranscript || finalTranscript.length < 2) {
-                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "未偵測到有效聲音。請確保對著麥克風大聲朗讀，並確認瀏覽器權限。" });
+                    if (!finalTranscript || finalTranscript.length < 3) {
+                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "未偵測到足夠語音。請確保您已開啟麥克風並大聲朗讀。" });
                         setLoading(false); 
                         return;
                     }
 
-                    const targetWords = selected.text.toLowerCase().replace(/[.,!?;:]/g, "").split(/\s+/);
-                    const userWords = finalTranscript.toLowerCase().split(/\s+/);
+                    const targetWords = selected.text.toLowerCase().replace(/[.,!?;:]/g, "").split(/\s+/).filter(Boolean);
+                    const userWords = finalTranscript.toLowerCase().split(/\s+/).filter(Boolean);
                     
                     let matches = 0;
                     targetWords.forEach(tw => { if(userWords.includes(tw)) matches++; });
@@ -338,19 +337,19 @@
                     const elapsed = (Date.now() - (startTimeRef.current || Date.now())) / 1000;
                     const wpm = Math.round((userWords.length / (elapsed || 1)) * 60);
                     
-                    const fluency = wpm > 100 ? 98 : wpm > 70 ? 85 : wpm > 40 ? 65 : 45;
-                    const articulation = Math.min(100, Math.round(accuracy * 0.92 + (Math.random()*8)));
-                    const pronunciation = Math.min(100, Math.round(accuracy * 0.96 + (Math.random()*4)));
+                    const fluency = Math.min(100, wpm > 100 ? 98 : wpm > 70 ? 85 : wpm > 40 ? 65 : 45);
+                    const articulation = Math.min(100, Math.round(accuracy * 0.9 + (Math.random()*10)));
+                    const pronunciation = Math.min(100, Math.round(accuracy * 0.95 + (Math.random()*5)));
                     const overall = Math.round((accuracy + fluency + articulation + pronunciation) / 4);
                     
-                    let advice = "您的發音相當穩定。";
-                    if(accuracy < 50) advice = "系統捕捉到的單字與原文差異較大，建議放慢語速，並確保每個單字的音節都清晰發出。";
-                    else if(wpm < 70) advice = "您的準確度很高，但語速稍慢，可以練習在句子中加入自然的停頓與連音。";
+                    let advice = "您的發音穩定。";
+                    if(accuracy < 50) advice = "系統辨識出的單字與原文差異較大，建議放慢語速，並確保每個單字的音節都清晰發出。";
+                    else if(wpm < 70) advice = "您的準確度很好，但語速稍慢，可以練習在句子中加入自然的停頓與連音。";
                     else advice = "表現出色！您的語速掌握得非常好，準確度也在水準之上。";
 
                     setFeedback({ overall, fluency, accuracy, articulation, pronunciation, advice });
                     setLoading(false);
-                }, 1000);
+                }, 800);
             };
 
             if (!selected) {
@@ -377,7 +376,7 @@
                         <div className="flex justify-center gap-16 mt-8">
                             <div className="text-center">
                                 <div className="text-[10px] opacity-60 font-black mb-1 uppercase tracking-widest">階段 Phase</div>
-                                <div className="text-2xl font-black">{phase === 'demo' ? '預覽與練習' : phase === 'prep' ? '準備中' : phase === 'speak' ? '錄音中' : '分析完成'}</div>
+                                <div className="text-2xl font-black">{phase === 'demo' ? '預覽與練習' : phase === 'prep' ? '準備中' : phase === 'speak' ? '正在錄音' : '分析完成'}</div>
                             </div>
                             {phase !== 'result' && (
                                 <div className="text-center border-l border-white/20 pl-16">
@@ -404,17 +403,16 @@
                                         <button onClick={speakDemo} className="flex items-center gap-2 bg-orange-50 text-orange-600 px-8 py-4 rounded-2xl font-black border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm"><Icon name="volume-2" /> AI 示範朗讀</button>
                                         <button onClick={startPrep} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-xl active:scale-95 uppercase tracking-widest">開始準備 (45s)</button>
                                     </div>
-                                    <p className="text-xs text-slate-400 font-bold italic">💡 點擊「示範朗讀」掌握節奏，準備好後按下開始。</p>
+                                    <p className="text-xs text-slate-400 font-bold italic">💡 先聽聽示範掌握節奏，準備好後按下開始。</p>
                                 </div>
                             )}
                             {phase === "speak" && (
                                 <div className="flex flex-col items-center gap-8 w-full">
                                     <div className="flex items-center gap-4 text-red-600 bg-red-50 px-8 py-4 rounded-full border border-red-200 shadow-inner">
                                         <div className="recording-wave">{[...Array(6)].map((_, i) => <div key={i} className="wave-bar" style={{animationDelay: `${i*0.1}s`}}></div>)}</div>
-                                        <span className="font-black uppercase tracking-widest italic">Mic On - Recording...</span>
+                                        <span className="font-black uppercase tracking-widest italic">錄音中 Recording...</span>
                                     </div>
-                                    {micError && <p className="text-red-500 font-bold text-sm bg-red-50 p-3 rounded-lg border border-red-200">無法存取麥克風，請確保您的瀏覽器允許麥克風權限。</p>}
-                                    <button onClick={stopMic} className="bg-red-600 text-white px-16 py-5 rounded-full font-black text-xl shadow-xl hover:bg-red-700 active:scale-95 transition-all">結束錄音並評分</button>
+                                    <button onClick={stopMic} className="bg-red-600 text-white px-16 py-5 rounded-full font-black text-xl shadow-xl hover:bg-red-700 active:scale-95 transition-all">完成並提交評分</button>
                                 </div>
                             )}
                             {phase === "result" && (
@@ -425,11 +423,11 @@
                                             <p className="font-black text-slate-400 uppercase tracking-widest animate-pulse">分析中 Analyzing Performance...</p>
                                         </div>
                                     ) : feedback && (
-                                        <div className="space-y-12 animate-in zoom-in-95 duration-500">
+                                        <div className="space-y-12 animate-in zoom-in-95 duration-500 px-4 md:px-10">
                                             <div className="flex flex-col items-center">
                                                 <ScoreRing label="整體評分 Overall" score={feedback.overall} colorClass="text-blue-900" size="large" />
                                             </div>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                                                 <ScoreMetric label="流利度" score={feedback.fluency} colorClass="text-blue-600" />
                                                 <ScoreMetric label="準確度" score={feedback.accuracy} colorClass="text-green-600" />
                                                 <ScoreMetric label="清晰度" score={feedback.articulation} colorClass="text-purple-600" />
@@ -440,7 +438,7 @@
                                                 <p className="text-slate-600 font-bold leading-relaxed">{feedback.advice}</p>
                                             </div>
                                             <div className="flex justify-center gap-4">
-                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setRealtimeText(""); lastTranscriptRef.current = ""; }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
+                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setRealtimeText(""); transcriptBufferRef.current = ""; }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
                                                 <button onClick={() => setSelected(null)} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-lg">更換主題</button>
                                             </div>
                                         </div>
