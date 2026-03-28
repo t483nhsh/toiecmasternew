@@ -113,7 +113,7 @@
             const radius = size === "large" ? 45 : 35;
             const circumference = 2 * Math.PI * radius;
             const offset = circumference - ((score || 0) / 100) * circumference;
-            const boxSize = size === "large" ? "w-40 h-40" : "w-20 h-20";
+            const boxSize = size === "large" ? "w-40 h-40" : "w-24 h-24";
             return (
                 <div className="flex flex-col items-center gap-2">
                     <div className={`relative ${boxSize}`}>
@@ -221,7 +221,7 @@
             const recognitionRef = useRef(null);
             const timerRef = useRef(null);
             const startTimeRef = useRef(null);
-            const fullTranscriptRef = useRef(""); // 關鍵：使用 Ref 存儲，避免 React State 非同步問題
+            const fullTranscriptRef = useRef(""); 
 
             const speakDemo = () => {
                 window.speechSynthesis.cancel();
@@ -311,7 +311,6 @@
 
             const analyzeLocally = () => {
                 setLoading(true);
-                // 延遲一點點確保錄音停止與最後一段文字處理完畢
                 setTimeout(() => {
                     const finalTranscript = fullTranscriptRef.current.trim() || realtimeText.trim();
                     
