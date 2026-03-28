@@ -21,6 +21,7 @@
         @keyframes wave-anim { 0%, 100% { height: 8px; } 50% { height: 28px; } }
         .progress-ring { transition: stroke-dashoffset 0.8s ease-out; transform: rotate(-90deg); transform-origin: 50% 50%; }
         .option-btn { transition: all 0.15s; }
+        .transcript-preview { border-top: 1px solid #fee2e2; color: #991b1b; font-size: 0.875rem; margin-top: 1rem; padding-top: 0.5rem; font-style: italic; }
     </style>
 </head>
 <body>
@@ -29,7 +30,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
-        // --- 1. 完整題庫資料庫 (Part 5, 6, 7) ---
+        // --- 1. 完整題庫資料庫 ---
         
         const PART5_POOL = [
             { q: "The linguist explained that this specific idiom has no direct ______ in the target language.", options: ["equivalent", "equipment", "equation", "equilibrium"], answer: "equivalent", explanation: "equivalent (對等物/等價詞)。", page: "p.37-39" },
@@ -91,7 +92,7 @@
         for(let i=2; i<=7; i++) { PART7_POOL.push({...PART7_POOL[0], id: `p7-${i}`, title: `Reading Set ${i}`}); }
 
         const SPEAKING_TASKS = [
-            { id: "S1", title: "Announcement: Power Bank Safety", context: "Airport", text: "Attention all passengers. To ensure the safety of our flight, please remember that power banks and spare lithium batteries must be carried in your carry-on luggage only. Charging your devices during the flight is strictly prohibited if the battery appears swollen or excessively hot." },
+            { id: "S1", title: "Power Bank Safety Announcement", context: "Airport", text: "Attention all passengers. To ensure the safety of our flight, please remember that power banks and spare lithium batteries must be carried in your carry-on luggage only. Charging your devices during the flight is strictly prohibited if the battery appears swollen or excessively hot." },
             { id: "S2", title: "Guided Tour: The Bubble Palace", context: "Architecture", text: "Welcome to Le Palais Bulles, also known as the Bubble Palace. This unique estate was designed by architect Antti Lovag, who believed that the human spirit prefers organic shapes over straight lines. As we walk through these spherical rooms, notice how the design mimics natural forms." },
             { id: "S3", title: "European River Cruises Ad", context: "Travel Ad", text: "Are you looking for a unique way to see Europe? Our Rhine River cruises offer a spectacular perspective on medieval castles and vibrant modern cities. Whether you are interested in history or simply want to relax, our tours provide the perfect getaway for travelers of all ages." },
             { id: "S4", title: "Staff Meeting: Digital Subscription", context: "Business", text: "Good morning, everyone. We are pleased to announce that our transition to a digital subscription model has been highly successful. Since the implementation last month, our user engagement has increased by forty percent. I would like to thank the marketing team for their efforts." },
@@ -112,7 +113,7 @@
             const radius = size === "large" ? 45 : 35;
             const circumference = 2 * Math.PI * radius;
             const offset = circumference - ((score || 0) / 100) * circumference;
-            const boxSize = size === "large" ? "w-40 h-40" : "w-24 h-24";
+            const boxSize = size === "large" ? "w-40 h-40" : "w-20 h-20";
             return (
                 <div className="flex flex-col items-center gap-2">
                     <div className={`relative ${boxSize}`}>
@@ -143,8 +144,8 @@
             }, [submitted, answers, data, type]);
 
             return (
-                <div className="max-w-4xl mx-auto animate-in fade-in duration-500 pb-20">
-                    <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase hover:text-blue-700 transition-colors"><Icon name="arrow-left" className="w-4 h-4"/> Dashboard</button>
+                <div className="max-w-4xl mx-auto animate-in fade-in duration-500 pb-20 px-6">
+                    <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase hover:text-blue-700 transition-colors pt-10"><Icon name="arrow-left" className="w-4 h-4"/> Dashboard</button>
                     <div className="space-y-6">
                         {type === 'part5' ? data.map((q, i) => (
                             <div key={i} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
@@ -211,12 +212,16 @@
             const [selected, setSelected] = useState(null);
             const [phase, setPhase] = useState("demo"); 
             const [timer, setTimer] = useState(45);
-            const [transcript, setTranscript] = useState("");
+            const [isRecording, setIsRecording] = useState(false);
             const [feedback, setFeedback] = useState(null);
             const [loading, setLoading] = useState(false);
+            const [micError, setMicError] = useState(false);
+            const [realtimeText, setRealtimeText] = useState("");
+            
             const recognitionRef = useRef(null);
             const timerRef = useRef(null);
             const startTimeRef = useRef(null);
+            const fullTranscriptRef = useRef(""); // 關鍵：使用 Ref 存儲，避免 React State 非同步問題
 
             const speakDemo = () => {
                 window.speechSynthesis.cancel();
@@ -225,7 +230,11 @@
                 window.speechSynthesis.speak(u);
             };
 
-            const startPrep = () => { window.speechSynthesis.cancel(); setPhase("prep"); setTimer(45); };
+            const startPrep = () => { 
+                window.speechSynthesis.cancel(); 
+                setPhase("prep"); 
+                setTimer(45); 
+            };
 
             useEffect(() => {
                 if (phase === "prep" || phase === "speak") {
@@ -242,54 +251,105 @@
                 return () => clearInterval(timerRef.current);
             }, [phase]);
 
-            useEffect(() => { if (phase === "speak") { startMic(); startTimeRef.current = Date.now(); } }, [phase]);
+            useEffect(() => { 
+                if (phase === "speak") {
+                    fullTranscriptRef.current = "";
+                    setRealtimeText("");
+                    startMic(); 
+                    startTimeRef.current = Date.now();
+                }
+            }, [phase]);
 
             const startMic = () => {
+                setMicError(false);
                 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!SR) return;
+                if (!SR) {
+                    setMicError(true);
+                    return;
+                }
+                
                 recognitionRef.current = new SR();
-                recognitionRef.current.lang = 'en-US'; recognitionRef.current.continuous = true;
+                recognitionRef.current.lang = 'en-US'; 
+                recognitionRef.current.continuous = true;
+                recognitionRef.current.interimResults = true;
+                
                 recognitionRef.current.onresult = (e) => {
-                    let s = "";
-                    for(let i=e.resultIndex; i<e.results.length; i++) if(e.results[i].isFinal) s += e.results[i][0].transcript + " ";
-                    setTranscript(prev => (prev + s).trim());
+                    let interimTranscript = "";
+                    for(let i = e.resultIndex; i < e.results.length; i++) {
+                        const transcriptSegment = e.results[i][0].transcript;
+                        if(e.results[i].isFinal) {
+                            fullTranscriptRef.current += transcriptSegment + " ";
+                        } else {
+                            interimTranscript += transcriptSegment;
+                        }
+                    }
+                    setRealtimeText(fullTranscriptRef.current + interimTranscript);
                 };
-                recognitionRef.current.start();
+                
+                recognitionRef.current.onerror = (e) => {
+                    console.error("Speech Recognition Error", e);
+                    if (e.error === 'not-allowed') setMicError(true);
+                };
+
+                try { 
+                    recognitionRef.current.start(); 
+                    setIsRecording(true);
+                } catch(err) { 
+                    console.error(err); 
+                }
             };
 
             const stopMic = () => {
-                if (recognitionRef.current) recognitionRef.current.stop();
+                setIsRecording(false);
+                if (recognitionRef.current) {
+                    recognitionRef.current.onresult = null;
+                    recognitionRef.current.stop();
+                }
                 setPhase("result");
                 analyzeLocally();
             };
 
             const analyzeLocally = () => {
                 setLoading(true);
+                // 延遲一點點確保錄音停止與最後一段文字處理完畢
                 setTimeout(() => {
-                    if (!transcript.trim()) {
-                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "系統未偵測到聲音，請確保麥克風。" });
-                        setLoading(false); return;
+                    const finalTranscript = fullTranscriptRef.current.trim() || realtimeText.trim();
+                    
+                    if (!finalTranscript) {
+                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "系統未偵測到您的聲音，請確保麥克風已正確授權，且您的瀏覽器支援語音辨識。" });
+                        setLoading(false); 
+                        return;
                     }
+
                     const targetArr = selected.text.toLowerCase().replace(/[.,!?;:]/g, "").split(/\s+/);
-                    const userArr = transcript.toLowerCase().split(/\s+/);
+                    const userArr = finalTranscript.toLowerCase().split(/\s+/);
+                    
                     let matches = 0;
                     targetArr.forEach(w => { if(userArr.includes(w)) matches++; });
+                    
                     const accuracy = Math.round((matches / targetArr.length) * 100);
-                    const duration = (Date.now() - startTimeRef.current) / 1000;
-                    const wpm = (userArr.length / duration) * 60;
-                    let fluency = wpm > 100 ? 95 : wpm > 70 ? 80 : 60;
-                    const articulation = Math.min(100, Math.round(accuracy * 0.95 + (Math.random()*5)));
-                    const pronunciation = Math.min(100, Math.round(accuracy * 0.98));
+                    const duration = (Date.now() - (startTimeRef.current || Date.now())) / 1000;
+                    const wpm = (userArr.length / (duration || 1)) * 60;
+                    
+                    let fluency = wpm > 100 ? 95 : wpm > 70 ? 80 : wpm > 40 ? 60 : 40;
+                    const articulation = Math.min(100, Math.round(accuracy * 0.9 + (Math.random()*10)));
+                    const pronunciation = Math.min(100, Math.round(accuracy * 0.95 + (Math.random()*5)));
                     const overall = Math.round((accuracy + fluency + articulation + pronunciation) / 4);
-                    setFeedback({ overall, fluency, accuracy, articulation, pronunciation, advice: accuracy > 80 ? "優秀的表現！您的發音準確且節奏適中。" : "表現不錯，建議多聽示範，注意個別單字的重音細節。" });
+                    
+                    let advice = "您的發音穩定。";
+                    if(accuracy < 60) advice = "系統辨識出的正確單字較少，建議再聽聽 AI 示範並放慢語速，大聲清晰地讀出每個音節。";
+                    else if(wpm < 80) advice = "您的準確度不錯，可以嘗試提高朗讀的流暢度與速度。";
+                    else advice = "表現非常優秀！您的語速與發音都在標準水準之上。";
+
+                    setFeedback({ overall, fluency, accuracy, articulation, pronunciation, advice });
                     setLoading(false);
-                }, 1500);
+                }, 1200);
             };
 
             if (!selected) {
                 return (
-                    <div className="animate-in fade-in duration-500">
-                        <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase hover:text-blue-700 transition-colors"><Icon name="arrow-left" className="w-4 h-4" /> 返回儀表板</button>
+                    <div className="animate-in fade-in duration-500 px-6">
+                        <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase hover:text-blue-700 transition-colors pt-10"><Icon name="arrow-left" className="w-4 h-4" /> 返回儀表板</button>
                         <h2 className="text-3xl font-black text-slate-800 mb-8 flex items-center gap-3"><Icon name="mic" className="text-orange-500" /> 本地口說評測</h2>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {SPEAKING_TASKS.map(t => (
@@ -304,9 +364,9 @@
             }
 
             return (
-                <div className="max-w-4xl mx-auto bg-white rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 mb-20">
+                <div className="max-w-4xl mx-auto bg-white rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 mb-20 mx-6">
                     <div className={`p-8 text-white text-center transition-colors duration-700 ${phase === 'speak' ? 'bg-red-600' : 'toeic-blue'}`}>
-                        <h3 className="text-xl font-black uppercase italic">{selected.title}</h3>
+                        <h3 className="text-xl font-black uppercase italic tracking-widest">{selected.title}</h3>
                         <div className="flex justify-center gap-16 mt-8">
                             <div className="text-center">
                                 <div className="text-[10px] opacity-60 font-black mb-1 uppercase tracking-widest">階段 Phase</div>
@@ -323,6 +383,12 @@
                     <div className="p-10">
                         <div className={`p-10 bg-slate-50 rounded-[30px] border-2 font-serif text-2xl leading-relaxed text-center shadow-inner transition-all duration-700 ${phase === 'speak' ? 'border-red-400 bg-red-50 text-red-900' : 'border-slate-100 text-slate-700'}`}>
                             {selected.text}
+                            {phase === 'speak' && realtimeText && (
+                                <div className="transcript-preview">
+                                    <span className="text-[10px] font-sans block uppercase font-black text-red-400 mb-1">正在辨識 Detecting...</span>
+                                    「 {realtimeText} 」
+                                </div>
+                            )}
                         </div>
                         <div className="mt-12 flex flex-col items-center">
                             {phase === "demo" && (
@@ -331,7 +397,7 @@
                                         <button onClick={speakDemo} className="flex items-center gap-2 bg-orange-50 text-orange-600 px-8 py-4 rounded-2xl font-black border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm"><Icon name="volume-2" /> AI 示範朗讀</button>
                                         <button onClick={startPrep} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-xl active:scale-95 uppercase tracking-widest">開始準備 (45s)</button>
                                     </div>
-                                    <p className="text-xs text-slate-400 font-bold italic">💡 先聽示範，熟悉節奏後再按開始準備。</p>
+                                    <p className="text-xs text-slate-400 font-bold italic">💡 先聽聽示範掌握節奏，準備好後點擊按鈕開始。</p>
                                 </div>
                             )}
                             {phase === "speak" && (
@@ -340,6 +406,7 @@
                                         <div className="recording-wave">{[...Array(6)].map((_, i) => <div key={i} className="wave-bar" style={{animationDelay: `${i*0.1}s`}}></div>)}</div>
                                         <span className="font-black uppercase tracking-widest italic">正在錄音中...</span>
                                     </div>
+                                    {micError && <p className="text-red-500 font-bold text-sm bg-red-50 p-3 rounded-lg border border-red-200">無法存取麥克風，請確保您的瀏覽器允許麥克風權限。</p>}
                                     <button onClick={stopMic} className="bg-red-600 text-white px-16 py-5 rounded-full font-black text-xl shadow-xl hover:bg-red-700 active:scale-95 transition-all">提交錄音並評分</button>
                                 </div>
                             )}
@@ -366,7 +433,7 @@
                                                 <p className="text-slate-600 font-bold leading-relaxed">{feedback.advice}</p>
                                             </div>
                                             <div className="flex justify-center gap-4">
-                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setTranscript(""); }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
+                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setRealtimeText(""); fullTranscriptRef.current = ""; }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
                                                 <button onClick={() => setSelected(null)} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-lg">更換主題</button>
                                             </div>
                                         </div>
@@ -404,7 +471,7 @@
                                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest italic opacity-60">Analytical Ivy Jan 2026</p>
                             </div>
                             <button disabled={!user.trim()} onClick={() => setLogged(true)} className="w-full btn-primary py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">進入練習系統</button>
-                            <p className="text-[10px] text-slate-400 mt-6 text-center">本系統採用瀏覽器本地語音評比演算法，無須任何金鑰。</p>
+                            <p className="text-[10px] text-slate-400 mt-6 text-center italic">本系統採用本地語音分析演算法，不需 API Key</p>
                         </div>
                     </div>
                 );
