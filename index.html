@@ -128,6 +128,23 @@
             );
         };
 
+        // 定義缺失的 ScoreMetric 組件
+        const ScoreMetric = ({ label, score, colorClass }) => (
+            <div className="flex flex-col items-center gap-2 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="relative w-20 h-20">
+                    <svg className="w-full h-full progress-ring" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="35" stroke="#f1f5f9" strokeWidth="8" fill="transparent" />
+                        <circle cx="50" cy="50" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" 
+                            strokeDasharray={2 * Math.PI * 35} 
+                            strokeDashoffset={(2 * Math.PI * 35) - ((score || 0) / 100) * (2 * Math.PI * 35)} 
+                            strokeLinecap="round" className={colorClass} />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center font-black text-slate-800 text-sm">{score || 0}%</div>
+                </div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+            </div>
+        );
+
         // --- 3. 測驗與練習頁面 ---
 
         const ReadingView = ({ type, data, onBack }) => {
@@ -221,7 +238,7 @@
             const recognitionRef = useRef(null);
             const timerRef = useRef(null);
             const startTimeRef = useRef(null);
-            const lastTranscriptRef = useRef(""); // 儲存最後辨識出的完整內容
+            const lastTranscriptRef = useRef(""); 
 
             const speakDemo = () => {
                 window.speechSynthesis.cancel();
@@ -276,7 +293,7 @@
                         fullText += e.results[i][0].transcript + " ";
                     }
                     setRealtimeText(fullText.trim());
-                    lastTranscriptRef.current = fullText.trim(); // 即時同步到 Ref
+                    lastTranscriptRef.current = fullText.trim(); 
                 };
                 
                 recognitionRef.current.onerror = (e) => {
@@ -302,7 +319,6 @@
 
             const analyzeLocally = () => {
                 setLoading(true);
-                // 延遲執行，確保最後一次辨識結果已寫入 lastTranscriptRef
                 setTimeout(() => {
                     const finalTranscript = lastTranscriptRef.current || realtimeText;
                     
@@ -515,7 +531,7 @@
                         {view === "speaking" && <SpeakingView onBack={() => setView("menu")} />}
                         {(view.startsWith('part')) && <ReadingView type={view} data={activeData} onBack={() => setView("menu")} />}
                     </main>
-                    <footer className="mt-20 py-12 border-t text-center text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">© 2026 ANALYTICAL IVY | PUBLIC WEB EDITION</footer>
+                    <footer className="mt-20 py-12 border-t text-center text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">© 2026 ANALYTICAL IVY | OFFLINE EVALUATION EDITION</footer>
                 </div>
             );
         };
