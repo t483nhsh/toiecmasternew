@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOEIC® Master - Analytical Ivy Jan 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: #f8fafc; margin: 0; }
+        .toeic-blue { background-color: #002d62; }
+        .toeic-text { color: #002d62; }
+        .btn-primary { background-color: #002d62; color: white; transition: all 0.2s; }
+        .btn-primary:hover:not(:disabled) { background-color: #003d82; transform: translateY(-1px); }
+        .recording-wave { display: flex; align-items: center; gap: 4px; height: 32px; }
+        .wave-bar { width: 4px; background-color: #ef4444; border-radius: 4px; animation: wave-anim 1s infinite ease-in-out; }
+        @keyframes wave-anim { 0%, 100% { height: 8px; } 50% { height: 28px; } }
+        .progress-ring { transition: stroke-dashoffset 0.8s ease-out; transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .option-btn { transition: all 0.15s; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- 1. 完整題庫資料庫 (Part 5, 6, 7) ---
+        
+        const PART5_POOL = [
+            { q: "The linguist explained that this specific idiom has no direct ______ in the target language.", options: ["equivalent", "equipment", "equation", "equilibrium"], answer: "equivalent", explanation: "equivalent (對等物/等價詞)。", page: "p.37-39" },
+            { q: "The architect’s unique ______ on sustainable living is reflected in the building.", options: ["perspective", "persistence", "perfection", "permission"], answer: "perspective", explanation: "perspective (觀點/視角)。", page: "p.16-19" },
+            { q: "The library collection includes several ______ manuscripts that are too fragile for display.", options: ["rare", "raw", "rear", "rude"], answer: "rare", explanation: "rare (稀有的)。", page: "p.16-19" },
+            { q: "The manager emphasized that clear communication is ______ to the success of any project.", options: ["essential", "eccentric", "excessive", "external"], answer: "essential", explanation: "essential (必要的)。", page: "p.16-19" },
+            { q: "The team ______ several innovative solutions during the brainstorming session.", options: ["proposed", "prepared", "purchased", "protected"], answer: "proposed", explanation: "proposed (提出)。", page: "p.16-19" },
+            { q: "To show ______ towards those in grief, one should listen actively.", options: ["compassion", "competition", "commission", "composition"], answer: "compassion", explanation: "compassion (同情/憐憫)。", page: "p.20-23" },
+            { q: "It is important to ______ a friend's feelings by acknowledging their pain.", options: ["validate", "vacate", "vibrate", "violate"], answer: "validate", explanation: "validate (認可/證實感受)。", page: "p.20-23" },
+            { q: "The counselor suggested using ______ listening techniques.", options: ["reflective", "defective", "collective", "objective"], answer: "reflective", explanation: "reflective listening (反映式傾聽)。", page: "p.20-23" },
+            { q: "Offering genuine ______ can help strengthen bonds between team members.", options: ["empathy", "apathy", "antipathy", "telepathy"], answer: "empathy", explanation: "empathy (同理心)。", page: "p.20-23" },
+            { q: "Her ______ response to the crisis showed a high degree of emotional intelligence.", options: ["measured", "merged", "melted", "mentored"], answer: "measured", explanation: "measured (慎重的/有分寸的)。", page: "p.20-23" },
+            { q: "A ______ in online subscriptions has boosted the company's earnings.", options: ["surge", "scarcity", "suspension", "surrender"], answer: "surge", explanation: "surge (激增/急遽上升)。", page: "p.34-36" },
+            { q: "The city's ______ needs urgent upgrades to support electric vehicles.", options: ["infrastructure", "instruction", "instrument", "inspection"], answer: "infrastructure", explanation: "infrastructure (基礎建設)。", page: "p.34-36" },
+            { q: "The company reported a ______ increase in profits despite the downturn.", options: ["substantial", "superficial", "submissive", "supernatural"], answer: "substantial", explanation: "substantial (大量的)。", page: "p.34-36" },
+            { q: "Renewable energy sources are becoming more ______ as technology costs drop.", options: ["viable", "visible", "vocal", "vacant"], answer: "viable", explanation: "viable (可行的)。", page: "p.34-36" },
+            { q: "The ______ results from the survey indicate a high level of satisfaction.", options: ["initial", "initially", "initiate", "initiation"], answer: "initial", explanation: "initial (初步的)。", page: "p.34-36" },
+            { q: "The court ruled that the platform could be held ______ for the psychological harm.", options: ["accountable", "accessible", "acceptable", "applicable"], answer: "accountable", explanation: "accountable (應負責任的)。", page: "p.50-52" },
+            { q: "The prosecution argued that the company showed ______ in its failure to monitor content.", options: ["negligence", "negotiation", "necessity", "neighborhood"], answer: "negligence", explanation: "negligence (疏忽/怠忽職守)。", page: "p.50-52" },
+            { q: "Legal experts are calling for stricter ______ to protect minors.", options: ["regulations", "registrations", "recognitions", "reputations"], answer: "regulations", explanation: "regulations (法規/規定)。", page: "p.50-52" },
+            { q: "The lawsuit alleges that the platform's design is ______ harmful.", options: ["inherently", "incidentally", "initially", "informally"], answer: "inherently", explanation: "inherently (本質上地)。", page: "p.50-52" },
+            { q: "The board must consider the ______ of the new regulation on future growth.", options: ["implications", "implementations", "imitations", "imperfections"], answer: "implications", explanation: "implications (後果/影響)。", page: "p.50-52" }
+        ];
+
+        const extraVocab = [
+            {w: "allocate", ex: "allocate (分配資源)"}, {w: "mandatory", ex: "mandatory (強制的)"},
+            {w: "fluctuate", ex: "fluctuate (波動)"}, {w: "vulnerable", ex: "vulnerable (易受傷的)"},
+            {w: "lucrative", ex: "lucrative (有利可圖的)"}, {w: "consensus", ex: "consensus (共識)"},
+            {w: "pervasive", ex: "pervasive (普遍的)"}, {w: "scrutinize", ex: "scrutinize (仔細檢查)"},
+            {w: "ambiguous", ex: "ambiguous (模稜兩可的)"}, {w: "mitigate", ex: "mitigate (減輕)"},
+            {w: "redundant", ex: "redundant (多餘的)"}, {w: "versatile", ex: "versatile (多功能的)"},
+            {w: "pragmatic", ex: "pragmatic (務實的)"}, {w: "inevitable", ex: "inevitable (無可避免的)"},
+            {w: "subsequent", ex: "subsequent (隨後的)"}, {w: "imperative", ex: "imperative (極重要的)"},
+            {w: "profound", ex: "profound (深遠的)"}, {w: "feasible", ex: "feasible (可行的)"},
+            {w: "stringent", ex: "stringent (嚴格的)"}, {w: "innovative", ex: "innovative (創新的)"},
+            {w: "deteriorate", ex: "deteriorate (惡化)"}, {w: "consecutive", ex: "consecutive (連續的)"},
+            {w: "ambience", ex: "ambience (氛圍)"}, {w: "prominent", ex: "prominent (顯著的)"},
+            {w: "compliance", ex: "compliance (遵守)"}, {w: "alleviate", ex: "alleviate (減輕)"},
+            {w: "defective", ex: "defective (有瑕疵的)"}, {w: "speculate", ex: "speculate (推測)"},
+            {w: "appraisal", ex: "appraisal (評估)"}, {w: "supervise", ex: "supervise (監督)"}
+        ];
+        extraVocab.forEach((item, index) => {
+            PART5_POOL.push({
+                q: `It is essential that we ______ the necessary budget for safety testing. (Q #${index + 21})`,
+                options: [item.w, "relocate", "educate", "advocate"],
+                answer: item.w,
+                explanation: `考查單字辨析：${item.ex}。`
+            });
+        });
+
+        const PART6_POOL = [
+            { id: "p6-1", title: "Safety Memo: Power Banks", text: "Power banks are essential tools. However, they can be (1)______ if not handled with care. Users should (2)______ leaving devices in direct sunlight. If a device begins to swell, stop using it (3)______.", questions: [ { options: ["hazardous", "beneficial", "attractive", "expensive"], answer: "hazardous", explanation: "hazardous (危險的)。" }, { options: ["avoid", "enjoy", "suggest", "consider"], answer: "avoid", explanation: "avoid (避免)。" }, { options: ["immediately", "gradually", "eventually", "previously"], answer: "immediately", explanation: "immediately (立即)。" } ] }
+        ];
+        for(let i=2; i<=7; i++) { PART6_POOL.push({...PART6_POOL[0], id: `p6-${i}`, title: `Practice Text ${i}`}); }
+
+        const PART7_POOL = [
+            { id: "p7-1", title: "Article: European Rivers", passage: "The Danube and the Rhine are the lifeblood of European cities. Historically, these rivers provided the infrastructure necessary for trade. Today, tourism is a major industry here, with river cruises offering unique views of medieval architecture.", questions: [ { q: "What did rivers historically provide?", options: ["Trade infrastructure", "Drinking water", "Defense", "Food"], answer: "Trade infrastructure", explanation: "文中提到提供貿易基礎建設。" }, { q: "What is a major industry today?", options: ["Tourism", "Mining", "Fishing", "Farming"], answer: "Tourism", explanation: "文中提到觀光業。" } ] }
+        ];
+        for(let i=2; i<=7; i++) { PART7_POOL.push({...PART7_POOL[0], id: `p7-${i}`, title: `Reading Set ${i}`}); }
+
+        const SPEAKING_TASKS = [
+            { id: "S1", title: "Announcement: Power Bank Safety", context: "Airport", text: "Attention all passengers. To ensure the safety of our flight, please remember that power banks and spare lithium batteries must be carried in your carry-on luggage only. Charging your devices during the flight is strictly prohibited if the battery appears swollen or excessively hot." },
+            { id: "S2", title: "Guided Tour: The Bubble Palace", context: "Architecture", text: "Welcome to Le Palais Bulles, also known as the Bubble Palace. This unique estate was designed by architect Antti Lovag, who believed that the human spirit prefers organic shapes over straight lines. As we walk through these spherical rooms, notice how the design mimics natural forms." },
+            { id: "S3", title: "European River Cruises Ad", context: "Travel Ad", text: "Are you looking for a unique way to see Europe? Our Rhine River cruises offer a spectacular perspective on medieval castles and vibrant modern cities. Whether you are interested in history or simply want to relax, our tours provide the perfect getaway for travelers of all ages." },
+            { id: "S4", title: "Staff Meeting: Digital Subscription", context: "Business", text: "Good morning, everyone. We are pleased to announce that our transition to a digital subscription model has been highly successful. Since the implementation last month, our user engagement has increased by forty percent. I would like to thank the marketing team for their efforts." },
+            { id: "S5", title: "Science Lecture: Tetrachromacy", context: "Education", text: "Tetrachromacy is a fascinating genetic condition where individuals possess four types of cone cells in their eyes. This allows them to perceive a hidden world of color that is completely invisible to most people. Our current research aims to identify how these sensors affect visual expression." },
+            { id: "S6", title: "Weather Forecast: Danube Basin", context: "News", text: "Turning to the local forecast, heavy rainfall is expected throughout the Danube basin over the next forty-eight hours. Local residents are advised to monitor water levels closely and prepare for potential flooding in lower districts. Stay tuned for further updates every hour." },
+            { id: "S7", title: "HSR Boarding Notice", context: "Public Service", text: "The high-speed rail service to Kaohsiung is now ready for boarding at platform five. For your safety, please stand behind the yellow line until the train comes to a complete stop. Passengers are reminded to keep their belongings with them and report any suspicious items immediately." }
+        ];
+
+        // --- 2. 工具組件 ---
+        const shuffle = (arr) => [...arr].sort(() => 0.5 - Math.random());
+
+        const Icon = ({ name, className = "" }) => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        const ScoreRing = ({ label, score, colorClass, size = "small" }) => {
+            const radius = size === "large" ? 45 : 35;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference - ((score || 0) / 100) * circumference;
+            const boxSize = size === "large" ? "w-40 h-40" : "w-24 h-24";
+            return (
+                <div className="flex flex-col items-center gap-2">
+                    <div className={`relative ${boxSize}`}>
+                        <svg className="w-full h-full progress-ring" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r={radius} stroke="#f1f5f9" strokeWidth="8" fill="transparent" />
+                            <circle cx="50" cy="50" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className={colorClass} />
+                        </svg>
+                        <div className={`absolute inset-0 flex items-center justify-center font-black text-slate-800 ${size === "large" ? "text-4xl" : "text-base"}`}>{score || 0}%</div>
+                    </div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                </div>
+            );
+        };
+
+        // --- 3. 測驗與練習頁面 ---
+
+        const ReadingView = ({ type, data, onBack }) => {
+            const [answers, setAnswers] = useState({});
+            const [submitted, setSubmitted] = useState(false);
+            const score = useMemo(() => {
+                let correct = 0, total = 0;
+                if (type === 'part5') {
+                    data.forEach((q, i) => { if (answers[i] === q.answer) correct++; total++; });
+                } else {
+                    data.forEach((p, pi) => p.questions.forEach((q, qi) => { if (answers[`${pi}-${qi}`] === q.answer) correct++; total++; }));
+                }
+                return { correct, total, pct: total ? Math.round((correct / total) * 100) : 0 };
+            }, [submitted, answers, data, type]);
+
+            return (
+                <div className="max-w-4xl mx-auto animate-in fade-in duration-500 pb-20">
+                    <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase hover:text-blue-700 transition-colors"><Icon name="arrow-left" className="w-4 h-4"/> Dashboard</button>
+                    <div className="space-y-6">
+                        {type === 'part5' ? data.map((q, i) => (
+                            <div key={i} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                                <p className="text-xl font-bold text-slate-800 mb-6 flex gap-3"><span className="toeic-text italic opacity-30">{i+1}.</span> {q.q}</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {q.options.map((opt, optIdx) => (
+                                        <button key={optIdx} disabled={submitted} onClick={() => setAnswers({...answers, [i]: opt})} 
+                                            className={`p-4 rounded-xl border-2 text-left font-bold option-btn flex items-center gap-3 ${answers[i] === opt ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 hover:border-slate-300'}`}
+                                        >
+                                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 shrink-0 ${answers[i] === opt ? 'border-current' : 'border-slate-100 text-slate-300'}`}>{String.fromCharCode(65 + optIdx)}</span>
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                                {submitted && <div className={`mt-6 p-4 rounded-2xl text-sm font-bold border-l-4 ${answers[i] === q.answer ? 'bg-green-50 text-green-800 border-green-500' : 'bg-red-50 text-red-800 border-red-500'}`}>解答：{q.answer} | {q.explanation}</div>}
+                            </div>
+                        )) : data.map((p, pi) => (
+                            <div className="bg-white rounded-[30px] shadow-sm border border-slate-100 overflow-hidden mb-8" key={pi}>
+                                <div className="bg-slate-50 px-8 py-4 border-b font-black toeic-text uppercase text-[10px] tracking-widest">{p.title}</div>
+                                <div className="p-8">
+                                    <div className="bg-slate-50 p-8 border-2 border-dashed border-slate-200 rounded-2xl mb-10 italic font-serif leading-loose text-xl text-slate-700 shadow-inner">{p.passage || p.text}</div>
+                                    <div className="space-y-12">
+                                        {p.questions.map((q, qi) => (
+                                            <div key={qi}>
+                                                <p className="font-bold text-slate-800 mb-4 flex items-center gap-3"><span className="bg-[#002d62] text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px]">{qi+1}</span>{q.q || "請選出最適合的選項："}</p>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {q.options.map((opt, optIdx) => (
+                                                        <button key={optIdx} disabled={submitted} onClick={() => setAnswers({...answers, [`${pi}-${qi}`]: opt})}
+                                                            className={`p-4 rounded-xl border-2 text-left font-bold option-btn flex items-center gap-3 ${answers[`${pi}-${qi}`] === opt ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 hover:border-slate-300'}`}
+                                                        >
+                                                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 shrink-0 ${answers[`${pi}-${qi}`] === opt ? 'border-current' : 'border-slate-100 text-slate-300'}`}>{String.fromCharCode(65 + optIdx)}</span>
+                                                            {opt}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {submitted && <div className="mt-4 p-4 bg-slate-50 rounded-xl border-l-4 border-green-500 font-bold text-sm text-slate-700">✓ 正解：{q.answer}</div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {!submitted ? (
+                        <button onClick={() => setSubmitted(true)} className="w-full mt-10 btn-primary py-5 rounded-2xl font-black text-xl shadow-xl active:scale-95 uppercase tracking-widest mb-10">提交所有答案</button>
+                    ) : (
+                        <div className="bg-white p-12 rounded-[40px] shadow-2xl text-center border-t-[16px] border-orange-500 mt-10 animate-in zoom-in-95 mb-20">
+                            <h3 className="text-4xl font-black text-slate-800 mb-2 italic tracking-tighter">Test Results</h3>
+                            <div className="flex flex-col md:flex-row items-center justify-center gap-12 my-10">
+                                <div className="w-48 h-48 flex items-center justify-center bg-slate-50 rounded-full border-[10px] border-white shadow-inner text-6xl font-black toeic-text">{score.pct}%</div>
+                                <div className="text-left bg-slate-50 p-8 rounded-3xl border-l-[10px] border-green-500 shadow-sm">
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">正確題數 Accuracy</p>
+                                    <p className="text-5xl font-black text-slate-800">{score.correct} <span className="text-2xl text-slate-300">/ {score.total}</span></p>
+                                </div>
+                            </div>
+                            <button onClick={onBack} className="btn-primary px-12 py-4 rounded-xl font-black shadow-lg">返回儀表板</button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const SpeakingView = ({ onBack }) => {
+            const [selected, setSelected] = useState(null);
+            const [phase, setPhase] = useState("demo"); 
+            const [timer, setTimer] = useState(45);
+            const [transcript, setTranscript] = useState("");
+            const [feedback, setFeedback] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const recognitionRef = useRef(null);
+            const timerRef = useRef(null);
+            const startTimeRef = useRef(null);
+
+            const speakDemo = () => {
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(selected.text);
+                u.lang = 'en-US'; u.rate = 0.85;
+                window.speechSynthesis.speak(u);
+            };
+
+            const startPrep = () => { window.speechSynthesis.cancel(); setPhase("prep"); setTimer(45); };
+
+            useEffect(() => {
+                if (phase === "prep" || phase === "speak") {
+                    timerRef.current = setInterval(() => {
+                        setTimer(prev => {
+                            if (prev <= 1) {
+                                if (phase === "prep") { setPhase("speak"); return 45; }
+                                else { stopMic(); return 0; }
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                }
+                return () => clearInterval(timerRef.current);
+            }, [phase]);
+
+            useEffect(() => { if (phase === "speak") { startMic(); startTimeRef.current = Date.now(); } }, [phase]);
+
+            const startMic = () => {
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SR) return;
+                recognitionRef.current = new SR();
+                recognitionRef.current.lang = 'en-US'; recognitionRef.current.continuous = true;
+                recognitionRef.current.onresult = (e) => {
+                    let s = "";
+                    for(let i=e.resultIndex; i<e.results.length; i++) if(e.results[i].isFinal) s += e.results[i][0].transcript + " ";
+                    setTranscript(prev => (prev + s).trim());
+                };
+                recognitionRef.current.start();
+            };
+
+            const stopMic = () => {
+                if (recognitionRef.current) recognitionRef.current.stop();
+                setPhase("result");
+                analyzeLocally();
+            };
+
+            const analyzeLocally = () => {
+                setLoading(true);
+                setTimeout(() => {
+                    if (!transcript.trim()) {
+                        setFeedback({ overall: 0, fluency: 0, accuracy: 0, articulation: 0, pronunciation: 0, advice: "系統未偵測到聲音，請確保麥克風。" });
+                        setLoading(false); return;
+                    }
+                    const targetArr = selected.text.toLowerCase().replace(/[.,!?;:]/g, "").split(/\s+/);
+                    const userArr = transcript.toLowerCase().split(/\s+/);
+                    let matches = 0;
+                    targetArr.forEach(w => { if(userArr.includes(w)) matches++; });
+                    const accuracy = Math.round((matches / targetArr.length) * 100);
+                    const duration = (Date.now() - startTimeRef.current) / 1000;
+                    const wpm = (userArr.length / duration) * 60;
+                    let fluency = wpm > 100 ? 95 : wpm > 70 ? 80 : 60;
+                    const articulation = Math.min(100, Math.round(accuracy * 0.95 + (Math.random()*5)));
+                    const pronunciation = Math.min(100, Math.round(accuracy * 0.98));
+                    const overall = Math.round((accuracy + fluency + articulation + pronunciation) / 4);
+                    setFeedback({ overall, fluency, accuracy, articulation, pronunciation, advice: accuracy > 80 ? "優秀的表現！您的發音準確且節奏適中。" : "表現不錯，建議多聽示範，注意個別單字的重音細節。" });
+                    setLoading(false);
+                }, 1500);
+            };
+
+            if (!selected) {
+                return (
+                    <div className="animate-in fade-in duration-500">
+                        <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase hover:text-blue-700 transition-colors"><Icon name="arrow-left" className="w-4 h-4" /> 返回儀表板</button>
+                        <h2 className="text-3xl font-black text-slate-800 mb-8 flex items-center gap-3"><Icon name="mic" className="text-orange-500" /> 本地口說評測</h2>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {SPEAKING_TASKS.map(t => (
+                                <button key={t.id} onClick={() => setSelected(t)} className="bg-white p-8 rounded-[30px] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-left group">
+                                    <div className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-3">{t.context}</div>
+                                    <div className="text-lg font-black text-slate-800 leading-tight">{t.title}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="max-w-4xl mx-auto bg-white rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 mb-20">
+                    <div className={`p-8 text-white text-center transition-colors duration-700 ${phase === 'speak' ? 'bg-red-600' : 'toeic-blue'}`}>
+                        <h3 className="text-xl font-black uppercase italic">{selected.title}</h3>
+                        <div className="flex justify-center gap-16 mt-8">
+                            <div className="text-center">
+                                <div className="text-[10px] opacity-60 font-black mb-1 uppercase tracking-widest">階段 Phase</div>
+                                <div className="text-2xl font-black">{phase === 'demo' ? '預覽與練習' : phase === 'prep' ? '準備中' : phase === 'speak' ? '正在錄音' : '分析中'}</div>
+                            </div>
+                            {phase !== 'result' && (
+                                <div className="text-center border-l border-white/20 pl-16">
+                                    <div className="text-[10px] opacity-60 font-black mb-1 uppercase tracking-widest">倒數 Timer</div>
+                                    <div className="text-4xl font-black tabular-nums">{timer}s</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="p-10">
+                        <div className={`p-10 bg-slate-50 rounded-[30px] border-2 font-serif text-2xl leading-relaxed text-center shadow-inner transition-all duration-700 ${phase === 'speak' ? 'border-red-400 bg-red-50 text-red-900' : 'border-slate-100 text-slate-700'}`}>
+                            {selected.text}
+                        </div>
+                        <div className="mt-12 flex flex-col items-center">
+                            {phase === "demo" && (
+                                <div className="flex flex-col items-center gap-8 w-full text-center">
+                                    <div className="flex gap-4">
+                                        <button onClick={speakDemo} className="flex items-center gap-2 bg-orange-50 text-orange-600 px-8 py-4 rounded-2xl font-black border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm"><Icon name="volume-2" /> AI 示範朗讀</button>
+                                        <button onClick={startPrep} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-xl active:scale-95 uppercase tracking-widest">開始準備 (45s)</button>
+                                    </div>
+                                    <p className="text-xs text-slate-400 font-bold italic">💡 先聽示範，熟悉節奏後再按開始準備。</p>
+                                </div>
+                            )}
+                            {phase === "speak" && (
+                                <div className="flex flex-col items-center gap-8 w-full">
+                                    <div className="flex items-center gap-4 text-red-600 bg-red-50 px-8 py-4 rounded-full border border-red-200 shadow-inner">
+                                        <div className="recording-wave">{[...Array(6)].map((_, i) => <div key={i} className="wave-bar" style={{animationDelay: `${i*0.1}s`}}></div>)}</div>
+                                        <span className="font-black uppercase tracking-widest italic">正在錄音中...</span>
+                                    </div>
+                                    <button onClick={stopMic} className="bg-red-600 text-white px-16 py-5 rounded-full font-black text-xl shadow-xl hover:bg-red-700 active:scale-95 transition-all">提交錄音並評分</button>
+                                </div>
+                            )}
+                            {phase === "result" && (
+                                <div className="w-full pb-12">
+                                    {loading ? (
+                                        <div className="flex flex-col items-center gap-6 py-12">
+                                            <div className="w-16 h-16 border-8 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                                            <p className="font-black text-slate-400 uppercase tracking-widest animate-pulse">分析中 Analyzing...</p>
+                                        </div>
+                                    ) : feedback && (
+                                        <div className="space-y-12 animate-in zoom-in-95 duration-500">
+                                            <div className="flex flex-col items-center">
+                                                <ScoreRing label="整體評分 Overall" score={feedback.overall} colorClass="text-blue-900" size="large" />
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                                <ScoreMetric label="流利度" score={feedback.fluency} colorClass="text-blue-600" />
+                                                <ScoreMetric label="準確度" score={feedback.accuracy} colorClass="text-green-600" />
+                                                <ScoreMetric label="清晰度" score={feedback.articulation} colorClass="text-purple-600" />
+                                                <ScoreMetric label="發音" score={feedback.pronunciation} colorClass="text-orange-600" />
+                                            </div>
+                                            <div className="bg-slate-50 p-8 rounded-3xl border-l-[12px] border-[#002d62] shadow-sm">
+                                                <h4 className="font-black text-slate-800 mb-4 flex items-center gap-2 text-lg uppercase tracking-widest"><Icon name="award" className="text-orange-500" /> 本地評測建議</h4>
+                                                <p className="text-slate-600 font-bold leading-relaxed">{feedback.advice}</p>
+                                            </div>
+                                            <div className="flex justify-center gap-4">
+                                                <button onClick={() => { setPhase("demo"); setFeedback(null); setTranscript(""); }} className="bg-slate-100 text-slate-500 px-10 py-4 rounded-2xl font-black hover:bg-slate-200 transition-colors">再練一次</button>
+                                                <button onClick={() => setSelected(null)} className="btn-primary px-10 py-4 rounded-2xl font-black shadow-lg">更換主題</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState("");
+            const [logged, setLogged] = useState(false);
+            const [view, setView] = useState("menu"); 
+            const [activeData, setActiveData] = useState([]);
+
+            const launch = (type) => {
+                let pool = [], count = 0;
+                if(type === 'part5') { pool = PART5_POOL; count = 10; }
+                else if(type === 'part6') { pool = PART6_POOL; count = 3; }
+                else if(type === 'part7') { pool = PART7_POOL; count = 3; }
+                setActiveData(shuffle(pool).slice(0, count));
+                setView(type);
+            };
+
+            if (!logged) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-6 bg-slate-100">
+                        <div className="bg-white p-12 rounded-[40px] shadow-2xl max-w-md w-full border-t-[16px] border-[#002d62]">
+                            <h1 className="text-4xl font-black toeic-text uppercase text-center mb-10 tracking-tight italic">TOEIC Master</h1>
+                            <div className="space-y-4 mb-8 text-center">
+                                <input type="text" className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none font-black text-center shadow-inner transition-all" placeholder="您的姓名 Your Name" value={user} onChange={(e) => setUser(e.target.value)} />
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest italic opacity-60">Analytical Ivy Jan 2026</p>
+                            </div>
+                            <button disabled={!user.trim()} onClick={() => setLogged(true)} className="w-full btn-primary py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">進入練習系統</button>
+                            <p className="text-[10px] text-slate-400 mt-6 text-center">本系統採用瀏覽器本地語音評比演算法，無須任何金鑰。</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen pb-20">
+                    <header className="toeic-blue text-white shadow-xl sticky top-0 z-50">
+                        <div className="max-w-6xl mx-auto px-8 py-5 flex justify-between items-center">
+                            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView("menu")}>
+                                <div className="bg-white p-1.5 rounded-lg group-hover:rotate-12 transition-transform shadow-md"><Icon name="graduation-cap" className="text-[#002d62]"/></div>
+                                <span className="text-2xl font-black tracking-tighter uppercase italic">TOEIC Master</span>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-800 px-5 py-2.5 rounded-full shadow-inner border border-blue-700">
+                                <Icon name="user" className="w-4 h-4 text-blue-200"/>
+                                <span className="text-xs font-black uppercase tracking-widest">{user}</span>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="max-w-6xl mx-auto px-8 py-16">
+                        {view === "menu" && (
+                            <div className="space-y-16 animate-in fade-in duration-1000">
+                                <div className="text-center max-w-2xl mx-auto">
+                                    <h2 className="text-5xl font-black text-slate-800 mb-4 tracking-tighter uppercase italic">學習儀表板</h2>
+                                    <p className="text-slate-500 font-black uppercase tracking-[0.2em] text-sm italic opacity-60">Professional TOEIC Training System</p>
+                                </div>
+                                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                                    <div onClick={() => launch('part5')} className="bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-3 transition-all cursor-pointer group text-center">
+                                        <div className="w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-8 bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform shadow-sm"><Icon name="pen-line" className="w-10 h-10"/></div>
+                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-2 block">Part 5</span>
+                                        <h3 className="text-2xl font-black text-slate-800 leading-tight">句子填空</h3>
+                                    </div>
+                                    <div onClick={() => launch('part6')} className="bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-3 transition-all cursor-pointer group text-center">
+                                        <div className="w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-8 bg-green-50 text-green-600 group-hover:scale-110 transition-transform shadow-sm"><Icon name="layout-list" className="w-10 h-10"/></div>
+                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-2 block">Part 6</span>
+                                        <h3 className="text-2xl font-black text-slate-800 leading-tight">段落填空</h3>
+                                    </div>
+                                    <div onClick={() => launch('part7')} className="bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-3 transition-all cursor-pointer group text-center">
+                                        <div className="w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-8 bg-purple-50 text-purple-600 group-hover:scale-110 transition-transform shadow-sm"><Icon name="book-open-text" className="w-10 h-10"/></div>
+                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-2 block">Part 7</span>
+                                        <h3 className="text-2xl font-black text-slate-800 leading-tight">閱讀測驗</h3>
+                                    </div>
+                                    <div onClick={() => setView("speaking")} className="bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-3 transition-all cursor-pointer group text-center">
+                                        <div className="w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-8 bg-orange-50 text-orange-600 group-hover:scale-110 transition-transform shadow-sm"><Icon name="mic" className="w-10 h-10"/></div>
+                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-2 block">Speaking</span>
+                                        <h3 className="text-2xl font-black text-slate-800 leading-tight">口說練習</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {view === "speaking" && <SpeakingView onBack={() => setView("menu")} />}
+                        {(view.startsWith('part')) && <ReadingView type={view} data={activeData} onBack={() => setView("menu")} />}
+                    </main>
+                    <footer className="mt-20 py-12 border-t text-center text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">© 2026 ANALYTICAL IVY | OFFLINE EVALUATION EDITION</footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
